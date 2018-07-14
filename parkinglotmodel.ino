@@ -1,7 +1,9 @@
-class Time {
-  public : static volatile long overflow_count;
-  public : volatile int register_count = 0;
+
+struct Time {
+   volatile long overflowCount;
+   volatile long registerCount = 0;
 };
+
 
 struct Spot {
   int index;
@@ -9,27 +11,38 @@ struct Spot {
   Time startTime;
 };
 
-class Duration {
-   private : Time start;
-   
-   public : Duration(Time start) {
-      this-> start = start;
-   }
-
-   public : Time getStart() {
-      return start;
-   }
-
-    
+class Node {
+   Node* nextNode;
+   Node* prevNode;
+   Time timeToFire;
 };
 
-const int SIZE = 7;
+class LinkedList {
+  public : Node* head; 
+};
 
+
+LinkedList blinkQueue;
+
+volatile long overflow_count;
+
+const int MILLIS_PER_CLK = 4;
+const float MILLIS_IN_SECOND = (float) 1000;
+const int SCALE_FACTOR = 1000;
+const long CLK_PER_OVF = 65535;
+
+
+const int SIZE = 7;
 Spot spots[SIZE];
 
-void setup() {
-  // put your setup code here, to run once:
 
+void setup() {
+  
+  Serial.begin(9600);
+ 
+  cli();
+
+  blinkQueue = LinkedList();
   for (int i = 0; i < SIZE; i++) {
       spots[i] = Spot();
       spots[i].index = i;
@@ -37,42 +50,102 @@ void setup() {
       spots[i].startTime = Time();
   }
 
-  //enable the overflow counter interrupt
+  //enable overflow, compareA, compareB
 
+  TIMSK1 = 0x7;
+
+  TCCR1A &= ~(1 << 0);
+  TCCR1A &= ~(1 << 1);
+  TCCR1B &= ~(1 << 3);
+  TCCR1B &= ~(1 << 2);
+  TCCR1B |= (1 << 1);
+  TCCR1B |= (1 << 0);
+  
+  OCR1B = 50000;
+  OCR1A = 40000;
+  
+  TCNT1 = 0;
+  sei();
+  
 }
 
 void loop() {
   // put your main code here, to run repeatedly
   //POLL FOR TIMERS?
+
+   float seconds = (double) getTimeMillis() / (float) 1000;
+   Serial.println("seconds since start: " + String(seconds));
+   delay(1000);
+
+   
+  
+}
+
+ISR (TIMER1_OVF_vect) {
+  overflow_count++;
+}
+
+ISR (TIMER1_COMPA_vect) {
+//   logic here
+}
+
+ISR (TIMER1_COMPB_vect) {
+//  logic here
 }
 
 
-void onSpotSelected(int index) {
+void blink (int id) {
+  
+}
 
-    Time t = Time();
-    //assign time.register count to the current register count
-    spots[index].startTime = t;
-    spots[index].isOccupied = true;
+void onSpotSelected(int index, int rC) {
+
+    Time tS = Time();
+    tS.overflowCount = overflow_count;
+    tS.registerCount = rC;
+    
+    spots[index].startTime = tS;
+    spots[index].isOccupied = true;   
 
     
 }
 
-void onSpotRemoved(int index) {
+void onSpotRemoved(int index, int rC) {
+  
+    Time tF = Time();
+    tF.overflowCount = overflow_count;
+    tF.registerCount = rC;
 
-    Time t = Time();
-    //assign current time to t
-    //calculate difference in time between 2 Time structs
+    Spot s = spots[index];
+    Time tS = s.startTime;
+
+    long timeMillis = convertClockToMillis(differenceInTimeCLK(tS, tF));
+    float seconds = (double) timeMillis / MILLIS_IN_SECOND;
+
+    //output the time in seconds
     //calculate price to charge
     //output price
 }
 
 long getTimeMillis() {
-
-   long l = Time::overflow_count;
+  
+   long remainder = TCNT1;
+   long clockCycle = overflow_count * CLK_PER_OVF + remainder;
    
+   return convertClockToMillis(clockCycle);
 }
 
+long convertClockToMillis(long clk) {
+   long myMillis =  clk * MILLIS_PER_CLK / SCALE_FACTOR;
+   return myMillis;
+}
 
+long differenceInTimeCLK(Time t1, Time t2) {
+
+    long oc = t2.overflowCount - t1.overflowCount;
+    long rc = t2.registerCount - t1.registerCount;
+    return oc * CLK_PER_OVF + rc;
+}
 
 //program interrupt logic for overflow
 
