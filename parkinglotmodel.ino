@@ -26,6 +26,10 @@ class Time {
    public : bool isEarlier(Time t) {
       return (this->overflowCount * CLK_PER_OVF + this-> registerCount) < (t.overflowCount * CLK_PER_OVF + t.registerCount); 
    }
+
+   public : String getTime() {
+      return "OVF: " + String(overflowCount) + "and " + String(TCNT1) + " cycles";
+   }
 };
 
 
@@ -44,26 +48,39 @@ struct Node {
 };
 
 class LinkedList {
-  public : Node* head = 0x0; 
+  public : Node* head = NULL; 
 
-  void modifyList(Node* newNode, Node* focusNode) {
-    if (head == 0x0) {
+   void modifyList(Node* newNode, Node* focusNode) {
+    if (head == NULL) {
        head = newNode;
-    } else if (focusNode->timeToFire.isEarlier(newNode->timeToFire)) {
+    } else if (!focusNode->timeToFire.isEarlier(newNode->timeToFire)) {
         newNode->prevNode = focusNode->prevNode;
-        focusNode->prevNode->nextNode = newNode;
+       
+        //handles head edge case
+        if (focusNode->prevNode != NULL) {
+            focusNode->prevNode->nextNode = newNode;
+        } else {
+            head = newNode;
+        }
+        
         focusNode->prevNode = newNode;
         newNode->nextNode = focusNode;
-    } else {
+    } else if (focusNode->nextNode == NULL) {
+        focusNode->nextNode = newNode;
+        newNode->prevNode = focusNode;
+    }else {
       modifyList(newNode, focusNode->nextNode);
     }
   }
 
   void deleteHead() {
-     head = head->nextNode;
-     delete head->prevNode;
+     if (head->nextNode != NULL) {
+        head = head->nextNode;
+        delete head->prevNode;
+     } else {
+         head = NULL;
+     } 
   }
-  
 };
 
 
@@ -137,20 +154,26 @@ ISR (TIMER1_OVF_vect) {
 
 ISR (TIMER1_COMPA_vect) {
 
-  if (overflow_count >= blinkQueue.head->timeToFire.overflowCount) {
-    int i = blinkQueue.head->index;
-    Time nextTime = convertIndexToTime(i);
+  if (spots[blinkQueue.head->index].isOccupied) {
+    if (overflow_count >= blinkQueue.head->timeToFire.overflowCount) {
+      int i = blinkQueue.head->index;
+      Time nextTime = convertIndexToTime(i);
+      
+      Node* n = new Node();
+      n->timeToFire = nextTime;
+      n->index = i;
+      
+      blinkQueue.modifyList(n, blinkQueue.head);
+      blinkQueue.deleteHead();
     
-    Node* n = new Node();
-    n->timeToFire = nextTime;
-    n->index = i;
-    
-    blinkQueue.modifyList(n, blinkQueue.head);
+      OCR1A = blinkQueue.head->timeToFire.registerCount;
+      setReadyToBlink(spots[i].pinId);
+    }
+  } else {
     blinkQueue.deleteHead();
-  
     OCR1A = blinkQueue.head->timeToFire.registerCount;
-    setReadyToBlink(spots[i].pinId);
   }
+  
      
 }
 
