@@ -1,9 +1,12 @@
-
+volatile int analogReader=0; //this is the variable that will be changed if an interrupt is detected
+int interruptPin = 2;
+int analogPin = A0;
 const int MILLIS_PER_CLK = 4;
 const float MILLIS_IN_SECOND = (float) 1000;
 const int SCALE_FACTOR = 1000;
 const long CLK_PER_OVF = 65535;
 
+bool parkingNumber[3] = {0,0,0}
 
 class Time {
    public : volatile long overflowCount;
@@ -55,9 +58,9 @@ Spot spots[SIZE];
 
 
 void setup() {
-  
   Serial.begin(9600);
- 
+  attachInterrupt(digitalPinToInterrupt(interruptPin),pauseCount,RISING); //Interrupt 0 is mapped to pin 2, signal an interrupt on a change to pin 2
+
   cli();
 
   blinkQueue = LinkedList();
@@ -89,8 +92,9 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly
+  analogReader = analogRead(analogPin); // reads analogPin (A0)
   //POLL FOR TIMERS?
-
+  
 
    if (blinkLED) {
       //find the LED Pin
@@ -176,4 +180,36 @@ long differenceInTimeCLK(Time t1, Time t2) {
 
 //program button handling
 
+bool checkReadyToGo(){
+    
+  
+}
+
+
+
+void pauseCount(){
+  Serial.println("Interrupt triggered");
+  if(analogReader < 5 && analogReade > 0){// 1 - 4
+    
+  }else if(analogReader == 0){
+   //weird...
+  }else if(analogReader < 10 && analogReader > 0){ // 9 - 1
+    
+  }else if(analogReader < 40 && analogReader > 32){ // 39-33
+    
+  }else if(analogReader < 51 && analogReader > 43){ // 50-44
+    
+  }else if(analogReader < 185 && analogReader > 175){ // 184-176
+    
+  }else if(analogReader < 252 && analogReader > 240){ // 251-241
+    
+  }else if(analogReader < 860 && analogReader > 850){ // 859-851
+    
+  }else if(analogReader < 911 && analogReader > 899){ // 910-900
+    
+  }else{ // 1024
+    //normal do nothing
+  }
+  
+}
 
