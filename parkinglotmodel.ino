@@ -11,11 +11,11 @@ const long CLK_PER_OVF = 65535;
 const int DELAY_TIME = 250;
 
 //dashboard and onboaring controls
-int stepNumber = 1;
-bool isIn = 0;
+volatile int stepNumber = 1;
+volatile bool isIn = 0;
 const int PARKING_ENTRY_DIGITS = 3;
-bool parkingNumber[PARKING_ENTRY_DIGITS] = {0,0,0};
-bool inputValid = false;
+volatile bool parkingNumber[PARKING_ENTRY_DIGITS] = {0,0,0};
+volatile bool inputValid = false;
 
 
 //defined classes and structures
@@ -124,11 +124,10 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly
   
-  if (blinkLED && pinNumber != -1) {
-     blink(pinNumber);
-     resetReadyToBlink();
-  }
-
+//  if (blinkLED && pinNumber != -1) {
+//     blink(pinNumber);
+//     resetReadyToBlink();
+//  }
    //debug
 }
 
@@ -250,60 +249,82 @@ int getParkingNumber(){
    return parkingNumber[0] + parkingNumber[1] * 2  + parkingNumber[2] * 4;
 }
 
-void onButtonClicked(){
-
-  if(analogReader < 5 && analogReader > 0){// 1 - 4
-   //weird...
-
-  }else if(analogReader == 0){
-   //weird...
-   
-  }else if(analogReader < 10 && analogReader > 0){ // 9 - 1
-    //button press on first button
-    parkingNumber[0] = !parkingNumber[0];
-    stepNumber = 2;
-    
-  }else if(analogReader < 40 && analogReader > 32){ // 39-33
-    //button press on second button
-    parkingNumber[1] = !parkingNumber[1];
-    stepNumber = 2;
-
-  }else if(analogReader < 51 && analogReader > 43){ // 50-44
-    //button press on third button
-    parkingNumber[2] = !parkingNumber[2];
-    stepNumber = 2;
-
-  }else if(analogReader < 185 && analogReader > 175){ // 184-176 
-    //in button press
-    if(stepNumber == 2){
-      isIn = true;
-      stepNumber = 3;  
-    }
-    
-  }else if(analogReader < 252 && analogReader > 240){ // 251-241  
-    //out button press
-    if(stepNumber == 2){
-      isIn = false;
-      stepNumber = 3;  
-    }
-    
-  }else if(analogReader < 860 && analogReader > 850){ // 859-851
-    //go button press
-    if(stepNumber == 3){
-      if(isIn){
-        onSpotSelected(getParkingNumber(), TCNT1);  
-      }else{
-        onSpotRemoved(getParkingNumber(), TCNT1);  
-      }
-      //resets:
-      stepNumber = 1;
-    }
-    
-  }else if(analogReader < 911 && analogReader > 899){ // 910-900
-    //todo add cancel button 
-  }else { // 1024
+//testing functions below
+void test(int value) {
+  if (value <= 5) {
+    Serial.println("btn 2^0");
+  } else if(value < 10 && value > 6){ // 9 - 1
+    Serial.println("btn 2^1");
+  } else if(value < 40 && value > 32){ // 39-33
+    Serial.println("btn 2^2");
+  } else if(value < 51 && value > 43){ // 50-44
+    Serial.println("btn in");
+  }else if(value < 185 && value > 175){ // 184-176 
+    Serial.println("btn out");
+  } else if(value < 252 && value > 240){ // 251-241  
+    Serial.println("btn go");
+  } else if(value < 860 && value > 850){ // 859-851
+    Serial.println("btn cancel. Not implemeneted");
+  } else if(value < 911 && value > 899){ // 910-900
+    //not implemented
+  } else { // 1024
     //normal do nothing
+    Serial.println("default value. It can't find a button");
   }
+}
+
+void onButtonClicked(){
+  analogReader = analogRead(analogPin);
+  int value = analogReader;
+  Serial.println("interrupt found voltage of: " + String(value));
+//  test(value);
+
+//    if(analogReader < 10 && analogReader > 0){ // 9 - 1
+//    //button press on first button
+//    parkingNumber[0] = !parkingNumber[0];
+//    stepNumber = 2;
+//    
+//  } else if(analogReader < 40 && analogReader > 32){ // 39-33
+//    //button press on second button
+//    parkingNumber[1] = !parkingNumber[1];
+//    stepNumber = 2;
+//
+//  } else if(analogReader < 51 && analogReader > 43){ // 50-44
+//    //button press on third button
+//    parkingNumber[2] = !parkingNumber[2];
+//    stepNumber = 2;
+//
+//  }else if(analogReader < 185 && analogReader > 175){ // 184-176 
+//    //in button press
+//    if(stepNumber == 2){
+//      isIn = true;
+//      stepNumber = 3;  
+//    }
+//    
+//  } else if(analogReader < 252 && analogReader > 240){ // 251-241  
+//    //out button press
+//    if(stepNumber == 2){
+//      isIn = false;
+//      stepNumber = 3;  
+//    }
+//    
+//  } else if(analogReader < 860 && analogReader > 850){ // 859-851
+//    //go button press
+//    if(stepNumber == 3){
+//      if(isIn){
+//        onSpotSelected(getParkingNumber(), TCNT1);  
+//      }else{
+//        onSpotRemoved(getParkingNumber(), TCNT1);  
+//      }
+//      //resets:
+//      stepNumber = 1;
+//    }
+//    
+//  } else if(analogReader < 911 && analogReader > 899){ // 910-900
+//    //todo add cancel button 
+//  } else { // 1024
+//    //normal do nothing
+//  }
   
 }
 
