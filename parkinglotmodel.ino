@@ -6,7 +6,12 @@ const float MILLIS_IN_SECOND = (float) 1000;
 const int SCALE_FACTOR = 1000;
 const long CLK_PER_OVF = 65535;
 
-bool parkingNumber[3] = {0,0,0}
+int stepNumber = 1;
+bool isIn=0;
+int parkingEntryDigits = 3;
+bool parkingNumber[parkingEntryDigits] = {0,0,0}
+bool inputValid = false;
+
 
 class Time {
    public : volatile long overflowCount;
@@ -151,6 +156,8 @@ void onSpotRemoved(int index, int rC) {
     long timeMillis = convertClockToMillis(differenceInTimeCLK(tS, tF));
     float seconds = (double) timeMillis / MILLIS_IN_SECOND;
 
+    spots[index].isOccupied = false; // removes
+    
     //output the time in seconds
     //calculate price to charge
     //output price
@@ -180,31 +187,59 @@ long differenceInTimeCLK(Time t1, Time t2) {
 
 //program button handling
 
-bool checkReadyToGo(){
-    
-  
-}
 
+int getParkingNumber(){
+   return parkingNumber[0] + parkingNumber[1] * 2  + parkingNumber[2] * 4;
+}
 
 
 void pauseCount(){
   Serial.println("Interrupt triggered");
-  if(analogReader < 5 && analogReade > 0){// 1 - 4
-    
+
+  if(analogReader < 5 && analogReader > 0){// 1 - 4
+   //weird...
+
   }else if(analogReader == 0){
    //weird...
+   
   }else if(analogReader < 10 && analogReader > 0){ // 9 - 1
+
+    parkingNumber[0] = !parkingNumber[0];
+    stepNumber = 2;
     
   }else if(analogReader < 40 && analogReader > 32){ // 39-33
-    
+
+    parkingNumber[1] = !parkingNumber[1];
+    stepNumber = 2;
+
   }else if(analogReader < 51 && analogReader > 43){ // 50-44
+   
+    parkingNumber[2] = !parkingNumber[2];
+    stepNumber = 2;
+
+  }else if(analogReader < 185 && analogReader > 175){ // 184-176 //IN IN IN IN 
+    if(stepNumber == 2){
+      isIn = true;
+      stepNumber = 3;  
+      
+    }
     
-  }else if(analogReader < 185 && analogReader > 175){ // 184-176
-    
-  }else if(analogReader < 252 && analogReader > 240){ // 251-241
+  }else if(analogReader < 252 && analogReader > 240){ // 251-241  //OUT OUT OUT 
+    if(stepNumber == 2){
+      isIn = false;
+      stepNumber = 3;  
+    }
     
   }else if(analogReader < 860 && analogReader > 850){ // 859-851
-    
+    if(stepNumber == 3){
+      if(isIn){
+        onSpotSelected(getParkingNumber(), TCNT1);  
+      }else{
+        onSpotRemoved(getParkingNumber(), TCNT1);  
+      }
+      //resets:
+      stepNumber = 1;
+    }
   }else if(analogReader < 911 && analogReader > 899){ // 910-900
     
   }else{ // 1024
