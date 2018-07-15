@@ -15,7 +15,7 @@ volatile int stepNumber = 1;
 volatile bool isIn = 0;
 const int PARKING_ENTRY_DIGITS = 3;
 volatile bool parkingNumber[PARKING_ENTRY_DIGITS] = {0,0,0};
-volatile bool inputValid = false;
+volatile bool inputValid = 0;
 
 
 //defined classes and structures
@@ -100,7 +100,23 @@ void setup() {
   Serial.begin(9600);
   attachInterrupt(digitalPinToInterrupt(interruptPin), onButtonClicked, RISING); //Interrupt 0 is mapped to pin 2, signal an interrupt on a change to pin 2
 
+  //connect each spot to their arbitrary led pin id
+  spots[0].pinId = 13;
+  spots[1].pinId = 12;
+  spots[2].pinId = 11;
+  spots[3].pinId = 10;
+  spots[4].pinId = 9;
+  spots[5].pinId = 7;
+  spots[6].pinId = 6;
+  
   //enable all pins we will be writing to
+  pinMode(spots[0].pinId, 1);
+  pinMode(spots[1].pinId, 1);
+  pinMode(spots[2].pinId, 1);
+  pinMode(spots[3].pinId, 1);
+  pinMode(spots[4].pinId, 1);
+  pinMode(spots[5].pinId, 1);
+  pinMode(spots[6].pinId, 1);
   
   cli();
 
@@ -111,15 +127,6 @@ void setup() {
       spots[i].isOccupied = false;
       spots[i].startTime = Time();
   }
-
-  //connect each spot to their arbitrary led pin id
-  spots[0].pinId = 13;
-  spots[1].pinId = 12;
-  spots[2].pinId = 11;
-  spots[3].pinId = 10;
-  spots[4].pinId = 9;
-  spots[5].pinId = 7;
-  spots[6].pinId = 6;
 
   //enable overflow, compareA, compareB
   TIMSK1 = 0x7;
@@ -155,21 +162,23 @@ ISR (TIMER1_OVF_vect) {
 ISR (TIMER1_COMPA_vect) {
 
   if (spots[blinkQueue.head->index].isOccupied) {
+    
     if (overflow_count >= blinkQueue.head->timeToFire.overflowCount) {
-      int i = blinkQueue.head->index;
-      Time nextTime = convertIndexToTime(i);
+      int index = blinkQueue.head->index;
+      Time* nextTime = convertIndexToTime(index);
       
       Node* n = new Node();
-      n->timeToFire = nextTime;
-      n->index = i;
+      n->timeToFire = (*nextTime);
+      n->index = index;
       
       blinkQueue.modifyList(n, blinkQueue.head);
       blinkQueue.deleteHead();
     
       OCR1A = blinkQueue.head->timeToFire.registerCount;
-      setReadyToBlink(spots[i].pinId);
+      setReadyToBlink(spots[index].pinId);
     }
   } else {
+    
     blinkQueue.deleteHead();
     OCR1A = blinkQueue.head->timeToFire.registerCount;
   }
@@ -181,21 +190,20 @@ ISR (TIMER1_COMPB_vect) {
 //  logic here
 }
 
-Time convertIndexToTime(int i) {
+Time* convertIndexToTime(int i) {
 
   //convert index to next blink in millis
   //#1 goes 1 per seconds, #2 goes 1 per 2 seconds...
-  long millisecondsLater = (i + 1) * MILLIS_IN_SECOND;
+  long millisecondsLater = getTimeMillis() + (i + 1) * MILLIS_IN_SECOND;
   long clkLater = millisecondsLater * MILLIS_PER_CLK / SCALE_FACTOR;
 
-  //will automatically floor the result
-  long ovfs = clkLater / CLK_PER_OVF; 
+  long ovfs = clkLater / CLK_PER_OVF; //will automatically floor the result
   long remainder = clkLater % CLK_PER_OVF;
 
   //assign to time object
-  Time aTime = Time();
-  aTime.overflowCount = ovfs;
-  aTime.registerCount = remainder;
+  Time* aTime = new Time();
+  aTime->overflowCount = ovfs;
+  aTime->registerCount = remainder;
   
   return aTime;
 }
@@ -208,12 +216,12 @@ void blink (int pinId) {
 }
 
 void setReadyToBlink(int pinId) {
-    blinkLED = true;
+    blinkLED = 1;
     pinNumber = pinId;
 }
 
 void resetReadyToBlink() {
-    blinkLED = false;
+    blinkLED = 0;
     pinNumber = -1;
 }
 
@@ -224,7 +232,7 @@ void onSpotSelected(int index, int rC) {
     tS.registerCount = rC;
     
     spots[index].startTime = tS;
-    spots[index].isOccupied = true;   
+    spots[index].isOccupied = 1;   
 
     
 }
@@ -241,7 +249,7 @@ void onSpotRemoved(int index, int rC) {
     long timeMillis = convertClockToMillis(differenceInTimeCLK(tS, tF));
     float seconds = (double) timeMillis / MILLIS_IN_SECOND;
 
-    spots[index].isOccupied = false; // removes
+    spots[index].isOccupied = 0; // removes
     
     //output the time in seconds
     //calculate price to charge
