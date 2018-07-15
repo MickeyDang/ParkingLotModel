@@ -44,10 +44,12 @@ struct Node {
 };
 
 class LinkedList {
-  public : Node* head; 
+  public : Node* head = 0x0; 
 
   void modifyList(Node* newNode, Node* focusNode) {
-    if (focusNode->timeToFire.isEarlier(newNode->timeToFire)) {
+    if (head == 0x0) {
+       head = newNode;
+    } else if (focusNode->timeToFire.isEarlier(newNode->timeToFire)) {
         newNode->prevNode = focusNode->prevNode;
         focusNode->prevNode->nextNode = newNode;
         focusNode->prevNode = newNode;
@@ -94,13 +96,13 @@ void setup() {
   }
 
   //connect each spot to their arbitrary led pin id
-  spots[0].pinId = -1;
-  spots[1].pinId = -1;
-  spots[2].pinId = -1;
-  spots[3].pinId = -1;
-  spots[4].pinId = -1;
-  spots[5].pinId = -1;
-  spots[6].pinId = -1;
+  spots[0].pinId = 13;
+  spots[1].pinId = 12;
+  spots[2].pinId = 11;
+  spots[3].pinId = 10;
+  spots[4].pinId = 9;
+  spots[5].pinId = 7;
+  spots[6].pinId = 6;
 
   //enable overflow, compareA, compareB
   TIMSK1 = 0x7;
@@ -158,7 +160,21 @@ ISR (TIMER1_COMPB_vect) {
 }
 
 Time convertIndexToTime(int i) {
+
+  //convert index to next blink in millis
+  //#1 goes 1 per seconds, #2 goes 1 per 2 seconds...
+  long millisecondsLater = (i + 1) * MILLIS_IN_SECOND;
+  long clkLater = millisecondsLater * MILLIS_PER_CLK / SCALE_FACTOR;
+
+  //will automatically floor the result
+  long ovfs = clkLater / CLK_PER_OVF; 
+  long remainder = clkLater % CLK_PER_OVF;
+
+  //assign to time object
   Time aTime = Time();
+  aTime.overflowCount = ovfs;
+  aTime.registerCount = remainder;
+  
   return aTime;
 }
 
