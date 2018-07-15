@@ -41,6 +41,14 @@ class LinkedList {
       modifyList(newNode, focusNode->nextNode);
     }
   }
+
+  void deleteHead() {
+      
+     head = head->nextNode;
+     delete head->prevNode;
+        
+  }
+  
 };
 
 
@@ -111,13 +119,28 @@ ISR (TIMER1_OVF_vect) {
 }
 
 ISR (TIMER1_COMPA_vect) {
-//   logic here
+  
+  int i = blinkQueue.head->index;
+  blink(i);
+  Time nextTime = convertIndexToTime(i);
+  
+  Node* n = new Node();
+  n->timeToFire = nextTime;
+  n->index = i;
+  
+  blinkQueue.modifyList(n, blinkQueue.head);
+  blinkQueue.deleteHead();
+  
 }
 
 ISR (TIMER1_COMPB_vect) {
 //  logic here
 }
 
+Time convertIndexToTime(int i) {
+  Time aTime = Time();
+  return aTime;
+}
 
 void blink (int id) {
   
