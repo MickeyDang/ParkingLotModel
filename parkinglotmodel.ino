@@ -1,7 +1,17 @@
 
-struct Time {
-   volatile long overflowCount;
-   volatile long registerCount = 0;
+const int MILLIS_PER_CLK = 4;
+const float MILLIS_IN_SECOND = (float) 1000;
+const int SCALE_FACTOR = 1000;
+const long CLK_PER_OVF = 65535;
+
+
+class Time {
+   public : volatile long overflowCount;
+   public : volatile long registerCount = 0;
+
+   public : bool isEarlier(Time t) {
+      return (this->overflowCount * CLK_PER_OVF + this-> registerCount) < (t.overflowCount * CLK_PER_OVF + t.registerCount); 
+   }
 };
 
 
@@ -11,25 +21,33 @@ struct Spot {
   Time startTime;
 };
 
-class Node {
+struct Node {
    Node* nextNode;
    Node* prevNode;
    Time timeToFire;
+   int index;
 };
 
 class LinkedList {
   public : Node* head; 
+
+  void modifyList(Node* newNode, Node* focusNode) {
+    if (focusNode->timeToFire.isEarlier(newNode->timeToFire)) {
+        newNode->prevNode = focusNode->prevNode;
+        focusNode->prevNode->nextNode = newNode;
+        focusNode->prevNode = newNode;
+        newNode->nextNode = focusNode;
+    } else {
+      modifyList(newNode, focusNode->nextNode);
+    }
+  }
 };
 
 
 LinkedList blinkQueue;
 
 volatile long overflow_count;
-
-const int MILLIS_PER_CLK = 4;
-const float MILLIS_IN_SECOND = (float) 1000;
-const int SCALE_FACTOR = 1000;
-const long CLK_PER_OVF = 65535;
+volatile bool blinkLED;
 
 
 const int SIZE = 7;
@@ -73,12 +91,19 @@ void loop() {
   // put your main code here, to run repeatedly
   //POLL FOR TIMERS?
 
+
+   if (blinkLED) {
+      //find the LED Pin
+      //set to high
+      //delay
+      //set to low
+      //change linkedlist
+   }
+   
    float seconds = (double) getTimeMillis() / (float) 1000;
    Serial.println("seconds since start: " + String(seconds));
    delay(1000);
 
-   
-  
 }
 
 ISR (TIMER1_OVF_vect) {
