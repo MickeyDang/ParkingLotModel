@@ -359,3 +359,36 @@ void onButtonClicked(){
   
 }
 
+
+
+void pauseCount(){
+ Serial.println("Interrupt triggered");
+
+ analogReader = analogRead(analogPin);
+ Serial.println(analogReader);
+  if(analogReader < 1024 && analogReader > 1020){// 1 - 4
+     Serial.println("2^0");
+  }else if(analogReader < 935 && analogReader > 928){ // 9 - 1
+     Serial.println("2^1");
+  }else if(analogReader < 860 && analogReader > 850){ // 39-33
+     Serial.println("2^2");
+  }else if(analogReader < 800 && analogReader > 770){ // 50-44
+     Serial.println("IN");
+  }else if(analogReader < 740 && analogReader > 720){ // 184-176
+     Serial.println("OUT");
+    
+  }else if(analogReader < 690 && analogReader > 680){ // 251-241
+      Serial.println("GO");
+   
+  }else if(analogReader < 650 && analogReader > 635){ // 859-851
+      Serial.println("EXTRA BTN 1");
+   
+  }else if(analogReader < 610 && analogReader > 600){ // 910-900
+      Serial.println("EXTRA BTN 2");
+   
+  }else{ // 1024
+    //normal do nothing
+  }
+  
+}
+
