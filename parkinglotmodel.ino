@@ -153,7 +153,6 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly
-  
   if (blinkLED && pinNumber != -1) {
      doBlink(pinNumber);
   }
