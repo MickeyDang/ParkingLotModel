@@ -1,3 +1,8 @@
+
+//TODO cancel button
+//TODO LCD screen
+//TODO make better serial statements (time stamps)
+
 //hardware variables
 volatile int analogReader = 0; //this is the variable that will be changed if an interrupt is detected
 int interruptPin = 2;
@@ -49,7 +54,7 @@ struct Node {
 
 class LinkedList {
   public : Node* head = NULL; 
-
+     
    void modifyList(Node* newNode, Node* focusNode) {
     if (head == NULL) {
        head = newNode;
@@ -100,6 +105,13 @@ void setup() {
   Serial.begin(9600);
   attachInterrupt(digitalPinToInterrupt(interruptPin), onButtonClicked, RISING); //Interrupt 0 is mapped to pin 2, signal an interrupt on a change to pin 2
 
+  for (int i = 0; i < SIZE; i++) {
+      spots[i] = Spot();
+      spots[i].index = i;
+      spots[i].isOccupied = 0;
+      spots[i].startTime = Time();
+  }
+
   //connect each spot to their arbitrary led pin id
   spots[0].pinId = 13;
   spots[1].pinId = 12;
@@ -110,23 +122,17 @@ void setup() {
   spots[6].pinId = 6;
   
   //enable all pins we will be writing to
-  pinMode(spots[0].pinId, 1);
-  pinMode(spots[1].pinId, 1);
-  pinMode(spots[2].pinId, 1);
-  pinMode(spots[3].pinId, 1);
-  pinMode(spots[4].pinId, 1);
-  pinMode(spots[5].pinId, 1);
-  pinMode(spots[6].pinId, 1);
+  pinMode(spots[0].pinId, OUTPUT);
+  pinMode(spots[1].pinId, OUTPUT);
+  pinMode(spots[2].pinId, OUTPUT);
+  pinMode(spots[3].pinId, OUTPUT);
+  pinMode(spots[4].pinId, OUTPUT);
+  pinMode(spots[5].pinId, OUTPUT);
+  pinMode(spots[6].pinId, OUTPUT);
   
   cli();
 
   blinkQueue = LinkedList();
-  for (int i = 0; i < SIZE; i++) {
-      spots[i] = Spot();
-      spots[i].index = i;
-      spots[i].isOccupied = false;
-      spots[i].startTime = Time();
-  }
 
   //enable overflow, compareA, compareB
   TIMSK1 = 0x7;
@@ -138,7 +144,7 @@ void setup() {
   TCCR1B |= (1 << 1);
   TCCR1B |= (1 << 0);
  
-  OCR1A = 40000;
+  OCR1A = 30000;
   
   TCNT1 = 0;
   sei();
@@ -148,11 +154,20 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly
   
-//  if (blinkLED && pinNumber != -1) {
-//     blink(pinNumber);
-//     resetReadyToBlink();
-//  }
-   //debug
+  if (blinkLED && pinNumber != -1) {
+     doBlink(pinNumber);
+  }
+}
+
+void doBlink (int pinId) {
+   //DELAY_TIME
+   Serial.println("begin blink");
+   resetReadyToBlink();
+   digitalWrite(pinId, HIGH);
+   delay(100);
+   digitalWrite(pinId, LOW);
+   delay(100);
+   Serial.println("done blink");
 }
 
 ISR (TIMER1_OVF_vect) {
@@ -161,9 +176,11 @@ ISR (TIMER1_OVF_vect) {
 
 ISR (TIMER1_COMPA_vect) {
 
-  if (spots[blinkQueue.head->index].isOccupied) {
+  if (blinkQueue.head != NULL && spots[blinkQueue.head->index].isOccupied == 1) {
     
     if (overflow_count >= blinkQueue.head->timeToFire.overflowCount) {
+      Serial.println(blinkQueue.head->index);
+      
       int index = blinkQueue.head->index;
       Time* nextTime = convertIndexToTime(index);
       
@@ -176,14 +193,12 @@ ISR (TIMER1_COMPA_vect) {
     
       OCR1A = blinkQueue.head->timeToFire.registerCount;
       setReadyToBlink(spots[index].pinId);
+
     }
-  } else {
-    
+  } else if (blinkQueue.head != NULL){
     blinkQueue.deleteHead();
     OCR1A = blinkQueue.head->timeToFire.registerCount;
-  }
-  
-     
+  }   
 }
 
 ISR (TIMER1_COMPB_vect) {
@@ -195,11 +210,12 @@ Time* convertIndexToTime(int i) {
   //convert index to next blink in millis
   //#1 goes 1 per seconds, #2 goes 1 per 2 seconds...
   long millisecondsLater = getTimeMillis() + (i + 1) * MILLIS_IN_SECOND;
-  long clkLater = millisecondsLater * MILLIS_PER_CLK / SCALE_FACTOR;
+  long clksLater = millisecondsLater * SCALE_FACTOR / MILLIS_PER_CLK;
 
-  long ovfs = clkLater / CLK_PER_OVF; //will automatically floor the result
-  long remainder = clkLater % CLK_PER_OVF;
+  long ovfs = clksLater / CLK_PER_OVF; //will automatically floor the result
+  long remainder = clksLater % CLK_PER_OVF;
 
+ 
   //assign to time object
   Time* aTime = new Time();
   aTime->overflowCount = ovfs;
@@ -208,12 +224,6 @@ Time* convertIndexToTime(int i) {
   return aTime;
 }
 
-void blink (int pinId) {
-   digitalWrite(pinId, HIGH);
-   delay(DELAY_TIME);
-   digitalWrite(pinId, LOW);
-   
-}
 
 void setReadyToBlink(int pinId) {
     blinkLED = 1;
@@ -226,7 +236,7 @@ void resetReadyToBlink() {
 }
 
 void onSpotSelected(int index, int rC) {
-
+    
     Time tS = Time();
     tS.overflowCount = overflow_count;
     tS.registerCount = rC;
@@ -234,7 +244,17 @@ void onSpotSelected(int index, int rC) {
     spots[index].startTime = tS;
     spots[index].isOccupied = 1;   
 
+    Time* nextTime = convertIndexToTime(index);
+
+    Serial.println(nextTime->overflowCount);
+    Serial.println(overflow_count);
     
+    Serial.println("line");
+    Node* n = new Node();
+    n->timeToFire = (*nextTime);
+    n->index = index;
+
+    blinkQueue.modifyList(n, blinkQueue.head);
 }
 
 void onSpotRemoved(int index, int rC) {
@@ -250,8 +270,8 @@ void onSpotRemoved(int index, int rC) {
     float seconds = (double) timeMillis / MILLIS_IN_SECOND;
 
     spots[index].isOccupied = 0; // removes
-    
-    //output the time in seconds
+
+    Serial.println("seconds in spot: " + String(seconds));
     //calculate price to charge
     //output price
 }
@@ -277,118 +297,112 @@ long differenceInTimeCLK(Time t1, Time t2) {
 }
 
 int getParkingNumber(){
-   return parkingNumber[0] + parkingNumber[1] * 2  + parkingNumber[2] * 4;
+   int p1 = parkingNumber[0] ? 1 : 0;
+   int p2 = parkingNumber[1] ? 1 : 0;
+   int p3 = parkingNumber[2] ? 1 : 0;
+   return p1 + p2 * 2  + p3 * 4;
 }
 
-//testing functions below
-void test(int value) {
-  if (value <= 5) {
-    Serial.println("btn 2^0");
-  } else if(value < 10 && value > 6){ // 9 - 1
-    Serial.println("btn 2^1");
-  } else if(value < 40 && value > 32){ // 39-33
-    Serial.println("btn 2^2");
-  } else if(value < 51 && value > 43){ // 50-44
-    Serial.println("btn in");
-  }else if(value < 185 && value > 175){ // 184-176 
-    Serial.println("btn out");
-  } else if(value < 252 && value > 240){ // 251-241  
-    Serial.println("btn go");
-  } else if(value < 860 && value > 850){ // 859-851
-    Serial.println("btn cancel. Not implemeneted");
-  } else if(value < 911 && value > 899){ // 910-900
-    //not implemented
-  } else { // 1024
+
+void test(int value){
+ Serial.println("interrupt found value of: " + String(value));
+ 
+ Serial.println(value);
+  if(value < 1024 && value > 1020){// 1 - 4
+     Serial.println("2^0");
+  }else if(value < 935 && value > 928){ // 9 - 1
+     Serial.println("2^1");
+  }else if(value < 860 && value > 850){ // 39-33
+     Serial.println("2^2");
+  }else if(value < 800 && value > 770){ // 50-44
+     Serial.println("IN");
+  }else if(value < 740 && value > 720){ // 184-176
+     Serial.println("OUT");
+    
+  }else if(value < 690 && value > 680){ // 251-241
+      Serial.println("GO");
+   
+  }else if(value < 650 && value > 635){ // 859-851
+      Serial.println("EXTRA BTN 1");
+   
+  }else if(value < 610 && value > 600){ // 910-900
+      Serial.println("EXTRA BTN 2");
+  }else{ // 1024
     //normal do nothing
-    Serial.println("default value. It can't find a button");
-  }
+  } 
 }
 
 void onButtonClicked(){
-  analogReader = analogRead(analogPin);
-  int value = analogReader;
-  Serial.println("interrupt found voltage of: " + String(value));
+  
+  int value = analogRead(analogPin);
+  
 //  test(value);
 
-//    if(analogReader < 10 && analogReader > 0){ // 9 - 1
-//    //button press on first button
-//    parkingNumber[0] = !parkingNumber[0];
-//    stepNumber = 2;
-//    
-//  } else if(analogReader < 40 && analogReader > 32){ // 39-33
-//    //button press on second button
-//    parkingNumber[1] = !parkingNumber[1];
-//    stepNumber = 2;
-//
-//  } else if(analogReader < 51 && analogReader > 43){ // 50-44
-//    //button press on third button
-//    parkingNumber[2] = !parkingNumber[2];
-//    stepNumber = 2;
-//
-//  }else if(analogReader < 185 && analogReader > 175){ // 184-176 
-//    //in button press
-//    if(stepNumber == 2){
-//      isIn = true;
-//      stepNumber = 3;  
-//    }
-//    
-//  } else if(analogReader < 252 && analogReader > 240){ // 251-241  
-//    //out button press
-//    if(stepNumber == 2){
-//      isIn = false;
-//      stepNumber = 3;  
-//    }
-//    
-//  } else if(analogReader < 860 && analogReader > 850){ // 859-851
-//    //go button press
-//    if(stepNumber == 3){
-//      if(isIn){
-//        onSpotSelected(getParkingNumber(), TCNT1);  
-//      }else{
-//        onSpotRemoved(getParkingNumber(), TCNT1);  
-//      }
-//      //resets:
-//      stepNumber = 1;
-//    }
-//    
-//  } else if(analogReader < 911 && analogReader > 899){ // 910-900
-//    //todo add cancel button 
-//  } else { // 1024
-//    //normal do nothing
-//  }
-  
-}
-
-
-
-void pauseCount(){
- Serial.println("Interrupt triggered");
-
- analogReader = analogRead(analogPin);
- Serial.println(analogReader);
-  if(analogReader < 1024 && analogReader > 1020){// 1 - 4
-     Serial.println("2^0");
-  }else if(analogReader < 935 && analogReader > 928){ // 9 - 1
-     Serial.println("2^1");
-  }else if(analogReader < 860 && analogReader > 850){ // 39-33
-     Serial.println("2^2");
-  }else if(analogReader < 800 && analogReader > 770){ // 50-44
-     Serial.println("IN");
-  }else if(analogReader < 740 && analogReader > 720){ // 184-176
-     Serial.println("OUT");
+  if(value < 1024 && value > 1020){// 1 - 4
+    Serial.println("2^0 is toggled");
+    //button press on first button
+    parkingNumber[0] = !parkingNumber[0];
+    stepNumber = 2;
     
-  }else if(analogReader < 690 && analogReader > 680){ // 251-241
-      Serial.println("GO");
+  }else if(value < 935 && value > 928){ // 9 - 1
+     Serial.println("2^1 is toggled");
+    //button press on second button
+    parkingNumber[1] = !parkingNumber[1];
+    stepNumber = 2;
+    
+  }else if(value < 860 && value > 850){ // 39-33
+     Serial.println("2^2 is toggled");
+    //button press on third button
+    parkingNumber[2] = !parkingNumber[2];
+    stepNumber = 2;
+    
+  }else if(value < 800 && value > 770){ // 50-44
+    
+    //in button press
+    if(stepNumber == 2){
+
+      Serial.println("in " + String(getParkingNumber()));
+      isIn = true;
+      stepNumber = 3;  
+    }
+    
+  }else if(value < 740 && value > 720){ // 184-176
+     Serial.println("out");
+    //out button press
+    if(stepNumber == 2){
+      isIn = false;
+      stepNumber = 3;  
+    }
+    
+  }else if(value < 690 && value > 680){ // 251-241
+
+    //go button press
+    if(stepNumber == 3){
+      if(isIn){
+         Serial.println("onSpotSelected");
+        onSpotSelected(getParkingNumber(), TCNT1);  
+      }else{
+        Serial.println("onSpotRemoved");
+        onSpotRemoved(getParkingNumber(), TCNT1);  
+      }
+      //resets:
+      stepNumber = 1;
+      parkingNumber[0] = 0; 
+      parkingNumber[1] = 0;
+      parkingNumber[2] = 0;  
+      isIn = 0;
+      inputValid = 0;
+    }
    
-  }else if(analogReader < 650 && analogReader > 635){ // 859-851
-      Serial.println("EXTRA BTN 1");
+  }else if(value < 650 && value > 635){ // 859-851
+//      Serial.println("EXTRA BTN 1");
    
-  }else if(analogReader < 610 && analogReader > 600){ // 910-900
-      Serial.println("EXTRA BTN 2");
-   
+  }else if(value < 610 && value > 600){ // 910-900
+//      Serial.println("EXTRA BTN 2");
   }else{ // 1024
     //normal do nothing
-  }
-  
+  } 
 }
+
+
 
