@@ -169,6 +169,16 @@ void doBlink (int pinId) {
    Serial.println("done blink");
 }
 
+void setDelay(long l) {
+
+   long clks = l * SCALE_FACTOR / MILLIS_PER_CLK;
+   long ovf_duration = clks / CLK_PER_OVF;
+   long remainder = clks % CLK_PER_OVF;
+
+   //set the Timer CompB
+   
+}
+
 ISR (TIMER1_OVF_vect) {
   overflow_count++;
 }
