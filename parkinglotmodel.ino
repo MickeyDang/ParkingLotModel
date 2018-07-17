@@ -13,7 +13,7 @@ const int MILLIS_PER_CLK = 4;
 const float MILLIS_IN_SECOND = (float) 1000;
 const int SCALE_FACTOR = 1000;
 const long CLK_PER_OVF = 65535;
-const int DELAY_TIME = 250;
+const int DELAY_TIME = 200;
 
 //dashboard and onboaring controls
 volatile int stepNumber = 1;
@@ -50,6 +50,7 @@ struct Node {
    Node* prevNode;
    Time timeToFire;
    int index;
+   bool turnOn;
 };
 
 class LinkedList {
@@ -153,31 +154,29 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly
-  if (blinkLED && pinNumber != -1) {
-     doBlink(pinNumber);
-  }
+//  if (blinkLED && pinNumber != -1) {
+//     doBlink(pinNumber);
+//  }
 }
 
-void doBlink (int pinId) {
+void doBlink (int pinId, bool turnOn) {
    //DELAY_TIME
-   Serial.println("begin blink");
-   resetReadyToBlink();
-   digitalWrite(pinId, HIGH);
-   delay(100);
-   digitalWrite(pinId, LOW);
-   delay(100);
-   Serial.println("done blink");
+//   Serial.println("begin blink");
+//   resetReadyToBlink();
+//   digitalWrite(pinId, HIGH);
+//   delay(200);
+//   digitalWrite(pinId, LOW);
+//   delay(200);
+
+    if (turnOn) {
+      digitalWrite(pinId, HIGH);
+    } else {
+      digitalWrite(pinId, LOW);
+    }
+    
+//   Serial.println("done blink");
 }
 
-void setDelay(long l) {
-
-   long clks = l * SCALE_FACTOR / MILLIS_PER_CLK;
-   long ovf_duration = clks / CLK_PER_OVF;
-   long remainder = clks % CLK_PER_OVF;
-
-   //set the Timer CompB
-   
-}
 
 ISR (TIMER1_OVF_vect) {
   overflow_count++;
@@ -188,20 +187,31 @@ ISR (TIMER1_COMPA_vect) {
   if (blinkQueue.head != NULL && spots[blinkQueue.head->index].isOccupied == 1) {
     
     if (overflow_count >= blinkQueue.head->timeToFire.overflowCount) {
-      Serial.println(blinkQueue.head->index);
+      
       
       int index = blinkQueue.head->index;
-      Time* nextTime = convertIndexToTime(index);
+      bool turnOn = blinkQueue.head->turnOn;
+
+      Time* nextTime;
+      if (turnOn) {
+        Serial.println(String(blinkQueue.head->index) + " - " + String(getTimeMillis()));
+        nextTime = getDelayTime();
+      } else {
+        nextTime = convertIndexToTime(index);
+      }
       
       Node* n = new Node();
       n->timeToFire = (*nextTime);
+      n->turnOn = !turnOn;
       n->index = index;
       
       blinkQueue.modifyList(n, blinkQueue.head);
       blinkQueue.deleteHead();
     
       OCR1A = blinkQueue.head->timeToFire.registerCount;
-      setReadyToBlink(spots[index].pinId);
+      doBlink(spots[index].pinId, turnOn);
+      
+//      setReadyToBlink(spots[index].pinId);
 
     }
   } else if (blinkQueue.head != NULL){
@@ -214,11 +224,27 @@ ISR (TIMER1_COMPB_vect) {
 //  logic here
 }
 
+Time* getDelayTime() {
+  long millisecondsLater = getTimeMillis() + DELAY_TIME; // delay is constant millis after current time
+  long clksLater = millisecondsLater * SCALE_FACTOR / MILLIS_PER_CLK;
+
+  long ovfs = clksLater / CLK_PER_OVF; //will automatically floor the result
+  long remainder = clksLater % CLK_PER_OVF;
+
+ 
+  //assign to time object
+  Time* aTime = new Time();
+  aTime->overflowCount = ovfs;
+  aTime->registerCount = remainder;
+  
+  return aTime;
+}
+
 Time* convertIndexToTime(int i) {
 
   //convert index to next blink in millis
-  //#1 goes 1 per seconds, #2 goes 1 per 2 seconds...
-  long millisecondsLater = getTimeMillis() + (i + 1) * MILLIS_IN_SECOND;
+  //#1 goes 1 per 2 seconds, #2 goes 1 per 3 seconds... hence the i + 1
+  long millisecondsLater = getTimeMillis() + (i + 1) * MILLIS_IN_SECOND; // first part is offset, second part is the constant interval to be added per index
   long clksLater = millisecondsLater * SCALE_FACTOR / MILLIS_PER_CLK;
 
   long ovfs = clksLater / CLK_PER_OVF; //will automatically floor the result
@@ -255,12 +281,13 @@ void onSpotSelected(int index, int rC) {
 
     Time* nextTime = convertIndexToTime(index);
 
-    Serial.println(nextTime->overflowCount);
-    Serial.println(overflow_count);
-    
-    Serial.println("line");
+//    Serial.println(nextTime->overflowCount);
+//    Serial.println(overflow_count);
+
+//    Serial.println("line");
     Node* n = new Node();
     n->timeToFire = (*nextTime);
+    n->turnOn = 1;
     n->index = index;
 
     blinkQueue.modifyList(n, blinkQueue.head);
@@ -302,7 +329,7 @@ long differenceInTimeCLK(Time t1, Time t2) {
 
     long oc = t2.overflowCount - t1.overflowCount;
     long rc = t2.registerCount - t1.registerCount;
-    return oc * CLK_PER_OVF + rc;
+    return oc * CLK_PER_OVF + rc; //RAW NUMBER FOR CLOCK CYCLES
 }
 
 int getParkingNumber(){
@@ -348,22 +375,24 @@ void onButtonClicked(){
 //  test(value);
 
   if(value < 1024 && value > 1020){// 1 - 4
-    Serial.println("2^0 is toggled");
     //button press on first button
     parkingNumber[0] = !parkingNumber[0];
     stepNumber = 2;
+    Serial.println("spot " + String(getParkingNumber()) + " selected");
     
   }else if(value < 935 && value > 928){ // 9 - 1
-     Serial.println("2^1 is toggled");
+     
     //button press on second button
     parkingNumber[1] = !parkingNumber[1];
     stepNumber = 2;
+    Serial.println("spot " + String(getParkingNumber()) + " selected");
     
   }else if(value < 860 && value > 850){ // 39-33
-     Serial.println("2^2 is toggled");
+   
     //button press on third button
     parkingNumber[2] = !parkingNumber[2];
     stepNumber = 2;
+    Serial.println("spot " + String(getParkingNumber()) + " selected");
     
   }else if(value < 800 && value > 770){ // 50-44
     
@@ -376,7 +405,7 @@ void onButtonClicked(){
     }
     
   }else if(value < 740 && value > 720){ // 184-176
-     Serial.println("out");
+     Serial.println("out" + String(getParkingNumber()));
     //out button press
     if(stepNumber == 2){
       isIn = false;
