@@ -17,7 +17,6 @@ volatile int stepNumber = 1;
 volatile bool isIn = 0;
 const int PARKING_ENTRY_DIGITS = 3;
 volatile bool parkingNumber[PARKING_ENTRY_DIGITS] = {0,0,0};
-volatile bool overrideEnabled = 0;
 volatile int takenSpots = 0;
 
 
@@ -351,7 +350,7 @@ void onButtonClicked(){
     
   }else if(value < 800 && value > 770){ // 50-44
     //in button press
-    if(stepNumber == 2 && getParkingNumber() >= 0 && getParkingNumber() < 7 && (takenSpots < 4 || overrideEnabled) && !spots[getParkingNumber()].isOccupied){
+    if(stepNumber == 2 && getParkingNumber() >= 0 && getParkingNumber() < 7 && !spots[getParkingNumber()].isOccupied){
       Serial.println("in " + String(getParkingNumber()));
       isIn = true;
       stepNumber = 3;  
@@ -386,8 +385,7 @@ void onButtonClicked(){
     Serial.println("Progress Cancelled");
    
   }else if(value < 610 && value > 600){ // 910-900
-    overrideEnabled = 1;
-    Serial.println("DANGER. OVERRIDE.");
+    //Button 2
   }else{ // 1024
     //normal do nothing
   } 
