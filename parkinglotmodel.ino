@@ -1,10 +1,17 @@
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
 
+// Set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x20, 16, 2);
 
 //hardware variables
 volatile int analogReader = 0; //this is the variable that will be changed if an interrupt is detected
 int interruptPin = 2;
 int analogPin = A0;
 
+
+String printer = "Welcome"; //global getter print function for LCD
+bool lcdIsDiff = 1;
 //constants
 const int MILLIS_PER_CLK = 4;
 const float MILLIS_IN_SECOND = (float) 1000;
@@ -104,6 +111,8 @@ void setup() {
   Serial.begin(9600);
   attachInterrupt(digitalPinToInterrupt(interruptPin), onButtonClicked, RISING); //Interrupt 0 is mapped to pin 2, signal an interrupt on a change to pin 2
 
+  lcd.begin();
+  
   //explcilty assign values to the spot objects in the parking lot
   for (int i = 0; i < SIZE; i++) {
       spots[i] = Spot();
@@ -156,6 +165,13 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly
+   if(lcdIsDiff){
+      lcd.clear();
+      lcdIsDiff = 0;
+      lcd.print(printer);
+      lcd.setCursor(0,0);
+   }
+   
 }
 
 void doBlink (int pinId, bool turnOn) {
@@ -284,7 +300,8 @@ void onSpotRemoved(int index, int rC) {
 
     spots[index].isOccupied = 0; // removes
 
-    Serial.println("seconds in spot: " + String(seconds));
+    printToLCD("s in spot: " + String(seconds));
+  
     takenSpots--;
     //calculate price to charge
     //output price
@@ -335,29 +352,32 @@ void onButtonClicked(){
     parkingNumber[0] = !parkingNumber[0];
     stepNumber = 2;
     Serial.println("spot " + String(getParkingNumber()) + " selected");
+    printToLCD("spot " + String(getParkingNumber()) + " selected");
     
   }else if(value < 935 && value > 928){ // 9 - 1   
     //button press on second button
     parkingNumber[1] = !parkingNumber[1];
     stepNumber = 2;
     Serial.println("spot " + String(getParkingNumber()) + " selected");
-    
+    printToLCD("spot " + String(getParkingNumber()) + " selected");
   }else if(value < 860 && value > 850){ // 39-33
     //button press on third button
     parkingNumber[2] = !parkingNumber[2];
     stepNumber = 2;
     Serial.println("spot " + String(getParkingNumber()) + " selected");
-    
+    printToLCD("spot " + String(getParkingNumber()) + " selected");
   }else if(value < 800 && value > 770){ // 50-44
     //in button press
     if(stepNumber == 2 && getParkingNumber() >= 0 && getParkingNumber() < 7 && !spots[getParkingNumber()].isOccupied){
       Serial.println("in " + String(getParkingNumber()));
+      printToLCD("in " + String(getParkingNumber()));
       isIn = true;
       stepNumber = 3;  
     }
     
   }else if(value < 740 && value > 720){ // 184-176
      Serial.println("out " + String(getParkingNumber()));
+     printToLCD("out " + String(getParkingNumber()));
     //out button press
     if(stepNumber == 2){
       isIn = false;
@@ -370,9 +390,12 @@ void onButtonClicked(){
     if(stepNumber == 3){
       if(isIn){
          Serial.println("onSpotSelected");
+         printToLCD("onSpotSelected");
+
         onSpotSelected(getParkingNumber(), TCNT1);  
       }else{
         Serial.println("onSpotRemoved");
+        printToLCD("onSpotRemoved");
         onSpotRemoved(getParkingNumber(), TCNT1);  
       }
       
@@ -391,5 +414,10 @@ void onButtonClicked(){
   } 
 }
 
+
+void printToLCD(String x){
+    lcdIsDiff = (printer != x);
+    printer = x;
+}
 
 
