@@ -1,3 +1,4 @@
+
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
@@ -351,32 +352,32 @@ void onButtonClicked(){
     //button press on first button
     parkingNumber[0] = !parkingNumber[0];
     stepNumber = 2;
-    Serial.println("spot " + String(getParkingNumber()) + " selected");
+//    Serial.println("spot " + String(getParkingNumber()) + " selected");
     printToLCD("spot " + String(getParkingNumber()) + " selected");
     
   }else if(value < 935 && value > 928){ // 9 - 1   
     //button press on second button
     parkingNumber[1] = !parkingNumber[1];
     stepNumber = 2;
-    Serial.println("spot " + String(getParkingNumber()) + " selected");
+//    Serial.println("spot " + String(getParkingNumber()) + " selected");
     printToLCD("spot " + String(getParkingNumber()) + " selected");
   }else if(value < 860 && value > 850){ // 39-33
     //button press on third button
     parkingNumber[2] = !parkingNumber[2];
     stepNumber = 2;
-    Serial.println("spot " + String(getParkingNumber()) + " selected");
+//    Serial.println("spot " + String(getParkingNumber()) + " selected");
     printToLCD("spot " + String(getParkingNumber()) + " selected");
   }else if(value < 800 && value > 770){ // 50-44
     //in button press
     if(stepNumber == 2 && getParkingNumber() >= 0 && getParkingNumber() < 7 && !spots[getParkingNumber()].isOccupied){
-      Serial.println("in " + String(getParkingNumber()));
+//      Serial.println("in " + String(getParkingNumber()));
       printToLCD("in " + String(getParkingNumber()));
       isIn = true;
       stepNumber = 3;  
     }
     
   }else if(value < 740 && value > 720){ // 184-176
-     Serial.println("out " + String(getParkingNumber()));
+//     Serial.println("out " + String(getParkingNumber()));
      printToLCD("out " + String(getParkingNumber()));
     //out button press
     if(stepNumber == 2){
@@ -389,12 +390,12 @@ void onButtonClicked(){
     //go button press
     if(stepNumber == 3){
       if(isIn){
-         Serial.println("onSpotSelected");
+//         Serial.println("onSpotSelected");
          printToLCD("onSpotSelected");
 
         onSpotSelected(getParkingNumber(), TCNT1);  
       }else{
-        Serial.println("onSpotRemoved");
+//        Serial.println("onSpotRemoved");
         printToLCD("onSpotRemoved");
         onSpotRemoved(getParkingNumber(), TCNT1);  
       }
@@ -405,7 +406,7 @@ void onButtonClicked(){
   }else if(value < 650 && value > 635){ // 859-851
     //cancel button
     reset();
-    Serial.println("Progress Cancelled");
+    printToLCD("Progress Cancelled");
    
   }else if(value < 610 && value > 600){ // 910-900
     //Button 2
