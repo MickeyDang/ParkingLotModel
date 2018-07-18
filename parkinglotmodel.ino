@@ -1,7 +1,4 @@
 
-//TODO cancel button
-//TODO LCD screen
-//TODO make better serial statements (time stamps)
 
 //hardware variables
 volatile int analogReader = 0; //this is the variable that will be changed if an interrupt is detected
@@ -13,14 +10,15 @@ const int MILLIS_PER_CLK = 4;
 const float MILLIS_IN_SECOND = (float) 1000;
 const int SCALE_FACTOR = 1000;
 const long CLK_PER_OVF = 65535;
-const int DELAY_TIME = 200;
+const int DELAY_TIME = 500;
 
 //dashboard and onboaring controls
 volatile int stepNumber = 1;
 volatile bool isIn = 0;
 const int PARKING_ENTRY_DIGITS = 3;
 volatile bool parkingNumber[PARKING_ENTRY_DIGITS] = {0,0,0};
-volatile bool inputValid = 0;
+volatile bool overrideEnabled = 0;
+volatile int takenSpots = 0;
 
 
 //defined classes and structures
@@ -91,7 +89,6 @@ class LinkedList {
   }
 };
 
-
 //global variables
 LinkedList blinkQueue;
 
@@ -108,6 +105,7 @@ void setup() {
   Serial.begin(9600);
   attachInterrupt(digitalPinToInterrupt(interruptPin), onButtonClicked, RISING); //Interrupt 0 is mapped to pin 2, signal an interrupt on a change to pin 2
 
+  //explcilty assign values to the spot objects in the parking lot
   for (int i = 0; i < SIZE; i++) {
       spots[i] = Spot();
       spots[i].index = i;
@@ -140,15 +138,18 @@ void setup() {
   //enable overflow, compareA, compareB
   TIMSK1 = 0x7;
 
+  //modifies the timer to be explicit default (250KHz frequency)
   TCCR1A &= ~(1 << 0);
   TCCR1A &= ~(1 << 1);
   TCCR1B &= ~(1 << 3);
   TCCR1B &= ~(1 << 2);
   TCCR1B |= (1 << 1);
   TCCR1B |= (1 << 0);
- 
+
+  //set random overflow time
   OCR1A = 30000;
-  
+
+  //explicitly sets TCNT1 to 0 before looping. This is our defined t = 0
   TCNT1 = 0;
   sei();
   
@@ -166,21 +167,20 @@ void doBlink (int pinId, bool turnOn) {
     }
 }
 
-
 ISR (TIMER1_OVF_vect) {
   overflow_count++;
 }
 
 ISR (TIMER1_COMPA_vect) {
-
+  
   if (blinkQueue.head != NULL && spots[blinkQueue.head->index].isOccupied == 1) {
-    
     if (overflow_count >= blinkQueue.head->timeToFire->overflowCount) {
-      
-      
+
+      //assign helper variables
       int index = blinkQueue.head->index;
       bool turnOn = blinkQueue.head->turnOn;
 
+      //set next time
       Time* nextTime;
       if (turnOn) {
         Serial.println(String(blinkQueue.head->index) + " - " + String(getTimeMillis()));
@@ -188,30 +188,36 @@ ISR (TIMER1_COMPA_vect) {
       } else {
         nextTime = convertIndexToTime(index);
       }
-      
+
+      //make new node
       Node* n = new Node();
       n->timeToFire = nextTime;
       n->turnOn = !turnOn;
       n->index = index;
-      
+
+      //insert node and modify list
       blinkQueue.modifyList(n, blinkQueue.head);
       blinkQueue.deleteHead();
-    
+
+      //update interrupt
       OCR1A = blinkQueue.head->timeToFire->registerCount;
+      //perform blink
       doBlink(spots[index].pinId, turnOn);
 
     }
   } else if (blinkQueue.head != NULL){
+    //occurs when the spot is no longer taken. Delete node so it will no longer prompt to blink
     blinkQueue.deleteHead();
     OCR1A = blinkQueue.head->timeToFire->registerCount;
   }   
 }
 
 ISR (TIMER1_COMPB_vect) {
-//  logic here
+//  mandatory empty override function
 }
 
 Time* getDelayTime() {
+  //create delay time object
   long millisecondsLater = getTimeMillis() + DELAY_TIME; // delay is constant millis after current time
   long clksLater = millisecondsLater * SCALE_FACTOR / MILLIS_PER_CLK;
 
@@ -228,7 +234,7 @@ Time* getDelayTime() {
 }
 
 Time* convertIndexToTime(int i) {
-
+  //create next blink time object
   //convert index to next blink in millis
   //#1 goes 1 per 2 seconds, #2 goes 1 per 3 seconds... hence the i + 1
   long millisecondsLater = getTimeMillis() + (i + 1) * MILLIS_IN_SECOND; // first part is offset, second part is the constant interval to be added per index
@@ -247,7 +253,7 @@ Time* convertIndexToTime(int i) {
 }
 
 void onSpotSelected(int index, int rC) {
-    
+   
     Time tS = Time();
     tS.overflowCount = overflow_count;
     tS.registerCount = rC;
@@ -263,6 +269,7 @@ void onSpotSelected(int index, int rC) {
     n->index = index;
 
     blinkQueue.modifyList(n, blinkQueue.head);
+    takenSpots++;
 }
 
 void onSpotRemoved(int index, int rC) {
@@ -271,8 +278,7 @@ void onSpotRemoved(int index, int rC) {
     tF.overflowCount = overflow_count;
     tF.registerCount = rC;
 
-    Spot s = spots[index];
-    Time tS = s.startTime;
+    Time tS = spots[index].startTime;
 
     long timeMillis = convertClockToMillis(differenceInTimeCLK(tS, tF));
     float seconds = (double) timeMillis / MILLIS_IN_SECOND;
@@ -280,7 +286,7 @@ void onSpotRemoved(int index, int rC) {
     spots[index].isOccupied = 0; // removes
 
     Serial.println("seconds in spot: " + String(seconds));
-    
+    takenSpots--;
     //calculate price to charge
     //output price
 }
@@ -312,6 +318,15 @@ int getParkingNumber(){
    return p1 + p2 * 2  + p3 * 4;
 }
 
+void reset() {
+   //resets:
+   stepNumber = 1;
+   parkingNumber[0] = 0; 
+   parkingNumber[1] = 0;
+   parkingNumber[2] = 0;  
+   isIn = 0;
+}
+
 void onButtonClicked(){
   
   int value = analogRead(analogPin);
@@ -336,7 +351,7 @@ void onButtonClicked(){
     
   }else if(value < 800 && value > 770){ // 50-44
     //in button press
-    if(stepNumber == 2){
+    if(stepNumber == 2 && getParkingNumber() >= 0 && getParkingNumber() < 7 && (takenSpots < 4 || overrideEnabled) && !spots[getParkingNumber()].isOccupied){
       Serial.println("in " + String(getParkingNumber()));
       isIn = true;
       stepNumber = 3;  
@@ -362,20 +377,17 @@ void onButtonClicked(){
         onSpotRemoved(getParkingNumber(), TCNT1);  
       }
       
-      //resets:
-      stepNumber = 1;
-      parkingNumber[0] = 0; 
-      parkingNumber[1] = 0;
-      parkingNumber[2] = 0;  
-      isIn = 0;
-      inputValid = 0;
+      reset();
     }
    
   }else if(value < 650 && value > 635){ // 859-851
-//      Serial.println("EXTRA BTN 1");
+    //cancel button
+    reset();
+    Serial.println("Progress Cancelled");
    
   }else if(value < 610 && value > 600){ // 910-900
-//      Serial.println("EXTRA BTN 2");
+    overrideEnabled = 1;
+    Serial.println("DANGER. OVERRIDE.");
   }else{ // 1024
     //normal do nothing
   } 
